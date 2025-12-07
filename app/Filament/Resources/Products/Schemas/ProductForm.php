@@ -46,11 +46,11 @@ class ProductForm
                 FileUpload::make('og_image')
                     ->image(),
                 TextInput::make('seo_title'),
+                TextInput::make('seo_robots'),
                 Textarea::make('seo_description')
                     ->columnSpanFull(),
                 Textarea::make('seo_keywords')
                     ->columnSpanFull(),
-                TextInput::make('seo_robots'),
             ]);
     }
 }

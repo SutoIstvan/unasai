@@ -9,6 +9,7 @@ use Filament\Actions\ExportAction;
 use Filament\Resources\Pages\ListRecords;
 use App\Filament\Imports\ProductImporter;
 use Filament\Actions\ImportAction;
+use Filament\Support\Colors\Color;
 
 class ListProducts extends ListRecords
 {
@@ -17,16 +18,19 @@ class ListProducts extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            CreateAction::make(),
+            CreateAction::make()
+                ->label('Új termék létrehozása')
+                ->color('gray')
+                ->icon('heroicon-o-plus'),
             ImportAction::make()
                 ->importer(ProductImporter::class)
                 ->label('CSV importálása')
-                ->color('success')
+                ->color('gray')
                 ->icon('heroicon-o-arrow-down-tray'),
             ExportAction::make()
                 ->exporter(ProductExporter::class)
                 ->label('CSV exportálása')
-                ->color('info')
+                ->color('gray')
                 ->icon('heroicon-o-arrow-up-tray'),
         ];
     }
