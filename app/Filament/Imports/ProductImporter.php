@@ -3,6 +3,7 @@
 namespace App\Filament\Imports;
 
 use App\Models\Product;
+use App\Models\ProductParameter;
 use Filament\Actions\Imports\ImportColumn;
 use Filament\Actions\Imports\Importer;
 use Filament\Actions\Imports\Models\Import;
@@ -16,63 +17,106 @@ class ProductImporter extends Importer
     {
         return [
             ImportColumn::make('cikkszam')
+                ->label('Cikkszám')
                 ->requiredMapping()
-                ->rules(['required']),
+                ->rules(['required', 'max:255']),
             ImportColumn::make('termek_nev')
+                ->label('Termék Név')
                 ->requiredMapping()
-                ->rules(['required']),
-            ImportColumn::make('statusz'),
+                ->rules(['required', 'max:255']),
+            ImportColumn::make('statusz')
+                ->label('Státusz'),
             ImportColumn::make('netto_ar')
-                ->numeric()
-                ->rules(['integer']),
+                ->label('Nettó Ár')
+                ->numeric(),
             ImportColumn::make('brutto_ar')
-                ->numeric()
-                ->rules(['integer']),
+                ->label('Bruttó Ár')
+                ->numeric(),
             ImportColumn::make('akcios_netto_ar')
-                ->numeric()
-                ->rules(['integer']),
+                ->label('Akciós Nettó Ár')
+                ->numeric(),
             ImportColumn::make('akcios_brutto_ar')
-                ->numeric()
-                ->rules(['integer']),
+                ->label('Akciós Bruttó Ár')
+                ->numeric(),
             ImportColumn::make('akcio_kezdet')
-                ->rules(['date']),
+                ->label('Akció Kezdet'),
             ImportColumn::make('akcio_lejarat')
-                ->rules(['date']),
-            ImportColumn::make('kategoria'),
-            ImportColumn::make('rovid_leiras'),
-            ImportColumn::make('tulajdonsagok'),
-            ImportColumn::make('link'),
+                ->label('Akció Lejárat'),
+            ImportColumn::make('kategoria')
+                ->label('Kategória'),
+            ImportColumn::make('rovid_leiras')
+                ->label('Rövid Leírás'),
+            ImportColumn::make('tulajdonsagok')
+                ->label('Tulajdonságok'),
+            ImportColumn::make('link')
+                ->label('Link'),
             ImportColumn::make('min_menny')
-                ->numeric()
-                ->rules(['integer']),
+                ->label('Min. Menny.')
+                ->numeric(),
             ImportColumn::make('max_menny')
-                ->numeric()
-                ->rules(['integer']),
-            ImportColumn::make('egyseg'),
-            ImportColumn::make('sef_url'),
-            ImportColumn::make('kep_alt_title'),
-            ImportColumn::make('kep_filenev'),
-            ImportColumn::make('og_image'),
-            ImportColumn::make('seo_title'),
-            ImportColumn::make('seo_description'),
-            ImportColumn::make('seo_keywords'),
-            ImportColumn::make('seo_robots'),
+                ->label('Max. Menny.')
+                ->numeric(),
+            ImportColumn::make('egyseg')
+                ->label('Egység'),
+            ImportColumn::make('sef_url')
+                ->label('SEF URL'),
+            ImportColumn::make('kep_alt_title')
+                ->label('Kép ALT/TITLE'),
+            ImportColumn::make('kep_filenev')
+                ->label('Kép filenév'),
+            ImportColumn::make('og_image')
+                ->label('OG image'),
+            ImportColumn::make('seo_title')
+                ->label('SEO Title'),
+            ImportColumn::make('seo_description')
+                ->label('SEO Description'),
+            ImportColumn::make('seo_keywords')
+                ->label('SEO Keywords'),
+            ImportColumn::make('seo_robots')
+                ->label('SEO Robots'),
         ];
     }
 
-    public function resolveRecord(): Product
+    public function resolveRecord(): ?Product
     {
         return Product::firstOrNew([
             'cikkszam' => $this->data['cikkszam'],
         ]);
     }
 
+    protected function afterSave(): void
+    {
+        // Обработка всех колонок, начинающихся с "Paraméter:"
+        foreach ($this->data as $key => $value) {
+            // Проверяем что это колонка параметра и значение не пустое
+            if (str_starts_with($key, 'Paraméter:') && !empty($value)) {
+                // Извлекаем название параметра и тип
+                // Формат: "Paraméter: Gyártó||text"
+                $parts = explode('||', $key);
+                $parameterName = trim(str_replace('Paraméter:', '', $parts[0]));
+                $parameterType = $parts[1] ?? 'text';
+
+                // Создаем или обновляем параметр
+                ProductParameter::updateOrCreate(
+                    [
+                        'product_id' => $this->record->id,
+                        'parameter_name' => $parameterName,
+                    ],
+                    [
+                        'parameter_type' => $parameterType,
+                        'parameter_value' => $value,
+                    ]
+                );
+            }
+        }
+    }
+
     public static function getCompletedNotificationBody(Import $import): string
     {
-        $body = 'Your product import has completed and ' . Number::format($import->successful_rows) . ' ' . str('row')->plural($import->successful_rows) . ' imported.';
+        $body = 'Импорт продуктов завершен. ' . Number::format($import->successful_rows) . ' ' . str('строка')->plural($import->successful_rows) . ' импортировано.';
 
         if ($failedRowsCount = $import->getFailedRowsCount()) {
-            $body .= ' ' . Number::format($failedRowsCount) . ' ' . str('row')->plural($failedRowsCount) . ' failed to import.';
+            $body .= ' ' . Number::format($failedRowsCount) . ' ' . str('строка')->plural($failedRowsCount) . ' не удалось импортировать.';
         }
 
         return $body;
