@@ -50,6 +50,8 @@ class ProductImporter extends Importer
                 ->label('Tulajdonságok'),
             ImportColumn::make('link')
                 ->label('Link'),
+            ImportColumn::make('kep_link')
+                ->label('Kép Link'),
             ImportColumn::make('min_menny')
                 ->label('Min. Menny.')
                 ->numeric(),

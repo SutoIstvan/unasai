@@ -34,6 +34,8 @@ class ProductForm
                     ->columnSpanFull(),
                 Textarea::make('tulajdonsagok')
                     ->columnSpanFull(),
+                Textarea::make('kep_link')
+                    ->columnSpanFull(),
                 TextInput::make('link'),
                 TextInput::make('min_menny')
                     ->numeric(),

@@ -23,6 +23,7 @@ return new class extends Migration
             $table->text('rovid_leiras')->nullable(); // Rövid Leírás
             $table->text('tulajdonsagok')->nullable(); // Tulajdonságok
             $table->string('link')->nullable(); // Link
+            $table->string('kep_link')->nullable(); // Kép Link
             $table->integer('min_menny')->nullable(); // Min. Menny.
             $table->integer('max_menny')->nullable(); // Max. Menny.
             $table->string('egyseg')->nullable(); // Egység

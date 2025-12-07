@@ -24,6 +24,7 @@ class Product extends Model
         'rovid_leiras',
         'tulajdonsagok',
         'link',
+        'kep_link',
         'min_menny',
         'max_menny',
         'egyseg',

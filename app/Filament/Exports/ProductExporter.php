@@ -43,6 +43,8 @@ class ProductExporter extends Exporter
                 ->label('Tulajdonságok'),
             ExportColumn::make('link')
                 ->label('Link'),
+            ExportColumn::make('kep_link')
+                ->label('Kép Link'),
             ExportColumn::make('min_menny')
                 ->label('Min. Menny.'),
             ExportColumn::make('max_menny')
