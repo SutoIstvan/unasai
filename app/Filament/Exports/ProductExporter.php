@@ -3,10 +3,13 @@
 namespace App\Filament\Exports;
 
 use App\Models\Product;
+use App\Models\ProductParameter;
 use Filament\Actions\Exports\ExportColumn;
 use Filament\Actions\Exports\Exporter;
 use Filament\Actions\Exports\Models\Export;
 use Illuminate\Support\Number;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class ProductExporter extends Exporter
 {
@@ -14,9 +17,9 @@ class ProductExporter extends Exporter
 
     public static function getColumns(): array
     {
-        return [
-            ExportColumn::make('id')
-                ->label('ID'),
+        Log::info('ProductExporter: Начало формирования колонок');
+
+        $columns = [
             ExportColumn::make('cikkszam')
                 ->label('Cikkszám'),
             ExportColumn::make('termek_nev')
@@ -67,23 +70,75 @@ class ProductExporter extends Exporter
                 ->label('SEO Keywords'),
             ExportColumn::make('seo_robots')
                 ->label('SEO Robots'),
-            
-            // Экспорт параметров как отдельные колонки
-            ExportColumn::make('parameters')
-                ->label('Параметры (JSON)')
-                ->state(function (Product $record): string {
-                    $parameters = $record->parameters->mapWithKeys(function ($param) {
-                        return [$param->parameter_name => $param->parameter_value];
-                    })->toArray();
-                    
-                    return json_encode($parameters, JSON_UNESCAPED_UNICODE);
-                }),
-            
-            ExportColumn::make('created_at')
-                ->label('Создан'),
-            ExportColumn::make('updated_at')
-                ->label('Обновлен'),
         ];
+
+        // Получаем все уникальные названия параметров из базы
+        $parameterNames = ProductParameter::select('parameter_name', 'parameter_type')
+            ->distinct()
+            ->get();
+
+        Log::info('ProductExporter: Найдено параметров', [
+            'count' => $parameterNames->count(),
+            'parameters' => $parameterNames->pluck('parameter_name')->toArray()
+        ]);
+
+        // Добавляем динамические колонки для каждого параметра
+        foreach ($parameterNames as $param) {
+            $paramName = (string) $param->parameter_name;
+            $paramType = (string) $param->parameter_type;
+            
+            // Создаем безопасное имя колонки (slug) без специальных символов
+            $safeColumnName = 'param_' . Str::slug($paramName, '_');
+            
+            Log::info('ProductExporter: Добавление параметра', [
+                'original_name' => $paramName,
+                'safe_column_name' => $safeColumnName,
+                'type' => $paramType
+            ]);
+            
+            $columns[] = ExportColumn::make($safeColumnName)
+                ->label('Paraméter: ' . $paramName . '||' . $paramType)
+                ->state(function (Product $record) use ($paramName): ?string {
+                    try {
+                        Log::info('ProductExporter: Получение значения параметра', [
+                            'product_id' => $record->id,
+                            'parameter_name' => $paramName
+                        ]);
+
+                        $parameter = $record->parameters()
+                            ->where('parameter_name', $paramName)
+                            ->first();
+                        
+                        $value = $parameter?->parameter_value;
+
+                        Log::info('ProductExporter: Значение параметра', [
+                            'product_id' => $record->id,
+                            'parameter_name' => $paramName,
+                            'value' => $value
+                        ]);
+
+                        return $value;
+                    } catch (\Exception $e) {
+                        Log::error('ProductExporter: Ошибка при получении параметра', [
+                            'product_id' => $record->id ?? 'unknown',
+                            'parameter_name' => $paramName,
+                            'error' => $e->getMessage(),
+                            'trace' => $e->getTraceAsString()
+                        ]);
+                        return null;
+                    }
+                });
+        }
+
+        Log::info('ProductExporter: Всего колонок создано', ['count' => count($columns)]);
+
+        return $columns;
+    }
+
+    public static function modifyQuery(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        Log::info('ProductExporter: Модификация запроса (eager loading)');
+        return $query->with('parameters');
     }
 
     public static function getCompletedNotificationBody(Export $export): string
