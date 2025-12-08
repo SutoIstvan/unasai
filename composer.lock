@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "b361bbd664300dde9eede65f3501cd6c",
+    "content-hash": "32f6275940f66ba391a7a301e8a281f0",
     "packages": [
         {
             "name": "anourvalar/eloquent-serialize",
@@ -3809,6 +3809,48 @@
                 "source": "https://github.com/nikic/PHP-Parser/tree/v5.7.0"
             },
             "time": "2025-12-06T11:56:16+00:00"
+        },
+        {
+            "name": "noffily/duckduckgo-images-api",
+            "version": "v1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/noffily/duckduckgo-images-api.git",
+                "reference": "a5a3ef62839ec7b6236faaf5d7a57d55d5094de8"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/noffily/duckduckgo-images-api/zipball/a5a3ef62839ec7b6236faaf5d7a57d55d5094de8",
+                "reference": "a5a3ef62839ec7b6236faaf5d7a57d55d5094de8",
+                "shasum": ""
+            },
+            "require": {
+                "ext-curl": "*",
+                "ext-json": "*",
+                "php": ">=7.4"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "DuckDuckGoImages\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Andrey Chepurnoy",
+                    "email": "noffily@gmail.com"
+                }
+            ],
+            "description": "Duckduckgo unofficial images api for PHP.",
+            "support": {
+                "issues": "https://github.com/noffily/duckduckgo-images-api/issues",
+                "source": "https://github.com/noffily/duckduckgo-images-api/tree/v1.0"
+            },
+            "time": "2021-10-13T12:26:49+00:00"
         },
         {
             "name": "nunomaduro/termwind",
@@ -11474,5 +11516,5 @@
         "php": "^8.2"
     },
     "platform-dev": {},
-    "plugin-api-version": "2.9.0"
+    "plugin-api-version": "2.6.0"
 }

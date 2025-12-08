@@ -2,8 +2,9 @@
 
 namespace App\Filament\Resources\Products\Pages;
 
+use App\Filament\Actions\ProductAIAssistantAction;
 use App\Filament\Resources\Products\ProductResource;
-use Filament\Actions\DeleteAction;
+use Filament\Actions;
 use Filament\Resources\Pages\EditRecord;
 
 class EditProduct extends EditRecord
@@ -13,7 +14,15 @@ class EditProduct extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            DeleteAction::make(),
+            ProductAIAssistantAction::make(),  // <-- Добавьте эту строку!
+            Actions\DeleteAction::make(),
         ];
+    }
+    
+    // Очищаем историю чата при открытии страницы
+    protected function mutateFormDataBeforeFill(array $data): array
+    {
+        session()->forget('ai_chat_history');
+        return $data;
     }
 }
