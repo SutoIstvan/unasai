@@ -19,11 +19,11 @@ class ParametersRelationManager extends RelationManager
 {
     protected static string $relationship = 'parameters';
     
-    protected static ?string $title = 'Параметры продукта';
+    protected static ?string $title = 'Termék paraméterek';
     
-    protected static ?string $modelLabel = 'параметр';
+    protected static ?string $modelLabel = 'paraméter';
     
-    protected static ?string $pluralModelLabel = 'параметры';
+    protected static ?string $pluralModelLabel = 'paraméterek';
 
     public function form(Schema $schema): Schema
     {
@@ -33,7 +33,7 @@ class ParametersRelationManager extends RelationManager
                     ->label('Paraméter neve')
                     ->required()
                     ->maxLength(255)
-                    ->placeholder('Например: Gyártó, Márka, Típus, Méret'),
+                    ->placeholder('Például: Gyártó, Márka, Típus, Méret'),
                 Select::make('parameter_type')
                     ->label('Paraméter típusa')
                     ->options([

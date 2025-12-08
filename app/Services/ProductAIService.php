@@ -29,79 +29,66 @@ class ProductAIService
             case 'generate_description':
                 $description = $this->generateDescription($product);
                 $updates['rovid_leiras'] = $description;
-                $message = "Описание создано и сохранено в поле 'Rövid Leírás'";
+                $message = "Leírás létrehozva és mentve a 'Rövid Leírás' mezőbe";
                 break;
 
-            // case 'find_image':
-            //     $imageUrl = $this->findProductImage($product);
-            //     if ($imageUrl) {
-            //         $updates['kep_link'] = $imageUrl;
-            //         $message = "Изображение найдено и сохранено: " . $imageUrl;
-            //     } else {
-            //         $message = "Не удалось найти изображение";
-            //     }
-            //     break;
-
             case 'find_image':
-                $imageUrl = $this->findProductImage($product, 3); // Ищем 3 картинки
+                $imageUrl = $this->findProductImage($product, 3);
                 if ($imageUrl) {
                     $updates['kep_link'] = $imageUrl;
                     $imageCount = count(explode('|', $imageUrl));
-                    $message = "Найдено {$imageCount} изображений и сохранено в 'Kép Link': " . $imageUrl;
+                    $message = "{$imageCount} kép találva és mentve a 'Kép Link' mezőbe: " . $imageUrl;
                 } else {
-                    $message = "Не удалось найти изображение";
+                    $message = "Nem sikerült képet találni";
                 }
                 break;
 
             case 'generate_keywords':
                 $keywords = $this->generateKeywords($product);
                 $updates['seo_keywords'] = $keywords;
-                $message = "Ключевые слова созданы";
+                $message = "Kulcsszavak létrehozva";
                 break;
 
             case 'generate_seo':
                 $seo = $this->generateSEO($product);
                 $updates = array_merge($updates, $seo);
-                $message = "SEO данные созданы";
+                $message = "SEO adatok létrehozva";
                 break;
 
-            // case 'generate_all':
-            //     $updates['rovid_leiras'] = $this->generateDescription($product);
-            //     $imageUrl = $this->findProductImage($product);
-            //     if ($imageUrl) {
-            //         $updates['kep_link'] = $imageUrl;
-            //     }
-            //     $seo = $this->generateSEO($product);
-            //     $updates = array_merge($updates, $seo);
-            //     $message = "Всё обновлено: описание, изображение и SEO";
-            //     break;
-
             case 'generate_all':
-                // Делаем все по очереди
                 $updates['rovid_leiras'] = $this->generateDescription($product);
-                $imageUrl = $this->findProductImage($product, 3); // Ищем 3 картинки
+                $imageUrl = $this->findProductImage($product, 3);
                 if ($imageUrl) {
                     $updates['kep_link'] = $imageUrl;
                 }
                 $seo = $this->generateSEO($product);
                 $updates = array_merge($updates, $seo);
-                
+
                 $imageCount = $imageUrl ? count(explode('|', $imageUrl)) : 0;
-                $message = "Всё обновлено: описание, {$imageCount} изображений и SEO";
+                $message = "Minden frissítve: leírás, {$imageCount} kép és SEO";
                 break;
 
             case 'find_multiple_images':
-                // Ищем больше картинок (3 штук)
                 $imageUrl = $this->findProductImage($product, 3);
                 if ($imageUrl) {
                     $updates['kep_link'] = $imageUrl;
                     $imageCount = count(explode('|', $imageUrl));
-                    $message = "Найдено {$imageCount} изображений и сохранено в 'Kép Link'";
+                    $message = "{$imageCount} kép találva és mentve a 'Kép Link' mezőbe";
                 } else {
-                    $message = "Не удалось найти изображения";
+                    $message = "Nem sikerült képeket találni";
                 }
                 break;
-                
+            
+            case 'extract_parameters':
+                $message = $this->updateParameters($product);
+                $product->refresh();
+                break;
+
+            case 'update_parameter':
+                $message = $this->smartUpdateParameter($product, $userRequest);
+                $product->refresh();
+                break;
+
             default:
                 $message = $this->chatWithGPT($product, $userRequest);
                 break;
@@ -124,12 +111,14 @@ class ProductAIService
             'messages' => [
                 [
                     'role' => 'system',
-                    'content' => 'Определи намерение. Верни JSON: {action: generate_description|find_image|find_multiple_images|generate_keywords|generate_seo|generate_all|chat}. Если пользователь просит "много картинок" или "несколько изображений" - используй find_multiple_images.'
-
+                    'content' => 'Határozd meg a szándékot. Adj vissza JSON-t: {action: generate_description|find_image|find_multiple_images|generate_keywords|generate_seo|generate_all|extract_parameters|update_parameter|chat}. 
+                Ha a felhasználó összes paramétert ki akar nyerni/kitölteni - használd az extract_parameters-t.
+                Ha a felhasználó konkrét paramétert akar frissíteni (például "keress gyarto") - használd az update_parameter-t.
+                Ha sok képet kér - használd a find_multiple_images-t.'
                 ],
                 [
                     'role' => 'user',
-                    'content' => "Товар: {$product->termek_nev}. Запрос: {$request}"
+                    'content' => "Termék: {$product->termek_nev}. Kérés: {$request}"
                 ]
             ],
             'response_format' => ['type' => 'json_object'],
@@ -150,11 +139,11 @@ class ProductAIService
             'messages' => [
                 [
                     'role' => 'system',
-                    'content' => 'Создай краткое описание товара (2-3 предложения)'
+                    'content' => 'Készíts rövid termékleírást (2-3 mondat)'
                 ],
                 [
                     'role' => 'user',
-                    'content' => "Товар: {$product->termek_nev}"
+                    'content' => "Termék: {$product->termek_nev}"
                 ]
             ],
             'max_tokens' => 200,
@@ -162,37 +151,21 @@ class ProductAIService
 
         return $response->json()['choices'][0]['message']['content'];
     }
-
-    // protected function findProductImage(Product $product): ?string
-    // {
-    //     try {
-    //         $searchQuery = $this->translateToEnglish($product->termek_nev);
-    //         $results = $this->imageClient->getImages($searchQuery);
-            
-    //         if (!empty($results['results'])) {
-    //             return $results['results'][0]['image'];
-    //         }
-    //     } catch (\Exception $e) {
-    //         \Log::error('Image search error: ' . $e->getMessage());
-    //     }
-
-    //     return null;
-    // }
-
+    
     /**
-     * Ищет несколько изображений товара через DuckDuckGo
+     * Több termékképet keres DuckDuckGo-n keresztül
      */
     protected function findProductImage(Product $product, int $count = 3): ?string
     {
         try {
-            // Переводим название на английский для лучших результатов
+            // Név fordítása angolra a jobb eredményekért
             $searchQuery = $this->translateToEnglish($product->termek_nev);
 
-            // Ищем изображения
+            // Képek keresése
             $results = $this->imageClient->getImages($searchQuery);
 
             if (!empty($results['results'])) {
-                // Берем несколько изображений (по умолчанию 3)
+                // Több kép kiválasztása (alapértelmezetten 3)
                 $imageUrls = [];
                 $limit = min($count, count($results['results']));
 
@@ -202,11 +175,11 @@ class ProductAIService
                     }
                 }
 
-                // Соединяем через |
+                // Összefűzés | jellel
                 return !empty($imageUrls) ? implode('|', $imageUrls) : null;
             }
         } catch (\Exception $e) {
-            \Log::error('Image search error: ' . $e->getMessage());
+            \Log::error('Képkeresési hiba: ' . $e->getMessage());
         }
 
         return null;
@@ -222,11 +195,11 @@ class ProductAIService
             'messages' => [
                 [
                     'role' => 'system',
-                    'content' => 'Создай SEO keywords (10-15 слов через запятую)'
+                    'content' => 'Készíts SEO kulcsszavakat (10-15 szó vesszővel elválasztva)'
                 ],
                 [
                     'role' => 'user',
-                    'content' => "Товар: {$product->termek_nev}"
+                    'content' => "Termék: {$product->termek_nev}"
                 ]
             ],
         ]);
@@ -244,11 +217,11 @@ class ProductAIService
             'messages' => [
                 [
                     'role' => 'system',
-                    'content' => 'Верни JSON: {seo_title: "...", seo_description: "...", seo_keywords: "..."}'
+                    'content' => 'Adj vissza JSON-t: {seo_title: "...", seo_description: "...", seo_keywords: "..."}'
                 ],
                 [
                     'role' => 'user',
-                    'content' => "Товар: {$product->termek_nev}"
+                    'content' => "Termék: {$product->termek_nev}"
                 ]
             ],
             'response_format' => ['type' => 'json_object'],
@@ -267,7 +240,7 @@ class ProductAIService
             'messages' => [
                 [
                     'role' => 'user',
-                    'content' => "Переведи на английский: {$text}"
+                    'content' => "Fordítsd le angolra: {$text}"
                 ]
             ],
             'max_tokens' => 100,
@@ -286,7 +259,7 @@ class ProductAIService
             'messages' => [
                 [
                     'role' => 'system',
-                    'content' => "Товар: {$product->termek_nev}"
+                    'content' => "Termék: {$product->termek_nev}"
                 ],
                 [
                     'role' => 'user',
@@ -296,5 +269,146 @@ class ProductAIService
         ]);
 
         return $response->json()['choices'][0]['message']['content'];
+    }
+
+    /**
+     * Paraméterek kinyerése a termék nevéből
+     */
+    protected function extractParameters(Product $product): array
+    {
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $this->openaiApiKey,
+            'Content-Type' => 'application/json',
+        ])->post('https://api.openai.com/v1/chat/completions', [
+            'model' => 'gpt-4o-mini',
+            'messages' => [
+                [
+                    'role' => 'system',
+                    'content' => 'Nyerd ki a termék paramétereit a névből. Adj vissza JSON objektumot ahol a kulcsok a paraméterek MAGYAR nevei (pl: Gyártó, Márka, Szín, Méret, Év stb.), és az értékek a kinyert adatok. Ha egy paraméter nem található, ne vedd bele a válaszba. FONTOS: A paraméterek nevei MINDIG magyarul legyenek!'
+                ],
+                [
+                    'role' => 'user',
+                    'content' => "Termék neve: {$product->termek_nev}"
+                ]
+            ],
+            'response_format' => ['type' => 'json_object'],
+            'temperature' => 0.3,
+        ]);
+
+        $data = $response->json();
+        return json_decode($data['choices'][0]['message']['content'], true);
+    }
+
+    /**
+     * Termék paramétereinek frissítése
+     */
+    protected function updateParameters(Product $product): string
+    {
+        try {
+            // Paraméterek kinyerése a névből
+            $extractedParams = $this->extractParameters($product);
+
+            $updatedCount = 0;
+            $createdCount = 0;
+
+            foreach ($extractedParams as $paramName => $value) {
+                if (empty($value)) continue;
+
+                // Paraméter keresése
+                $parameter = $product->parameters()
+                    ->where('parameter_name', $paramName)
+                    ->first();
+
+                if ($parameter) {
+                    // Meglévő frissítése
+                    $parameter->update(['parameter_value' => $value]);
+                    $updatedCount++;
+                } else {
+                    // Új létrehozása
+                    $product->parameters()->create([
+                        'parameter_name' => $paramName,
+                        'parameter_type' => 'text',
+                        'parameter_value' => $value,
+                    ]);
+                    $createdCount++;
+                }
+            }
+
+            return "Paraméterek frissítve: {$createdCount} létrehozva, {$updatedCount} frissítve";
+        } catch (\Exception $e) {
+            \Log::error('Paraméter kinyerési hiba: ' . $e->getMessage());
+            return 'Hiba történt a paraméterek frissítése során';
+        }
+    }
+
+    /**
+     * Konkrét paraméter frissítése
+     */
+    protected function updateSpecificParameter(Product $product, string $parameterName, string $value): string
+    {
+        try {
+            $parameter = $product->parameters()
+                ->where('parameter_name', $parameterName)
+                ->first();
+
+            if ($parameter) {
+                $parameter->update(['parameter_value' => $value]);
+                return "'{$parameterName}' paraméter frissítve: '{$value}'";
+            } else {
+                $product->parameters()->create([
+                    'parameter_name' => $parameterName,
+                    'parameter_type' => 'text',
+                    'parameter_value' => $value,
+                ]);
+                return "'{$parameterName}' paraméter létrehozva: '{$value}'";
+            }
+        } catch (\Exception $e) {
+            \Log::error('Paraméter frissítési hiba: ' . $e->getMessage());
+            return 'Hiba történt a paraméter frissítése során';
+        }
+    }
+
+    /**
+     * Intelligens paraméter frissítés GPT-n keresztül
+     */
+    protected function smartUpdateParameter(Product $product, string $userRequest): string
+    {
+        try {
+            // GPT használata a paraméter és érték meghatározásához
+            $response = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $this->openaiApiKey,
+                'Content-Type' => 'application/json',
+            ])->post('https://api.openai.com/v1/chat/completions', [
+                'model' => 'gpt-4o-mini',
+                'messages' => [
+                    [
+                        'role' => 'system',
+                        'content' => 'A felhasználó frissíteni akar egy termékparamétert. Adj vissza JSON-t: {parameter_name: "paraméter neve MAGYARUL (pl. Gyártó, Márka, Szín stb.)", value: "paraméter értéke"}. Nyerd ki az értéket a termék nevéből ha szükséges. FONTOS: parameter_name MINDIG magyarul legyen!'
+                    ],
+                    [
+                        'role' => 'user',
+                        'content' => "Termék: {$product->termek_nev}. Kérés: {$userRequest}"
+                    ]
+                ],
+                'response_format' => ['type' => 'json_object'],
+                'temperature' => 0.3,
+            ]);
+
+            $data = $response->json();
+            $result = json_decode($data['choices'][0]['message']['content'], true);
+
+            if (isset($result['parameter_name']) && isset($result['value'])) {
+                return $this->updateSpecificParameter(
+                    $product,
+                    $result['parameter_name'],
+                    $result['value']
+                );
+            }
+
+            return 'Nem sikerült meghatározni a frissítendő paramétert';
+        } catch (\Exception $e) {
+            \Log::error('Intelligens paraméter frissítési hiba: ' . $e->getMessage());
+            return 'Hiba történt a paraméter frissítése során';
+        }
     }
 }

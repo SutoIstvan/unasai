@@ -14,33 +14,33 @@ class ProductAIBulkAction
     public static function make(): Action
     {
         return Action::make('ai_bulk_assistant')
-            ->label('🤖 AI Помощник')
+            ->label('AI asszisztens')
             ->icon('heroicon-o-sparkles')
             ->color('primary')
-            ->modalHeading('AI Помощник для выбранных товаров')
-            ->modalDescription('Выберите действие для всех выбранных товаров')
+            ->modalHeading('AI asszisztens tömeges művelet')
+            ->modalDescription('Válassza ki az AI műveletet, amelyet alkalmazni szeretne az összes kiválasztott termékre')
             ->modalWidth('3xl')
             ->accessSelectedRecords()  // <-- Это ключевая строка!
             ->form([
                 Select::make('action_type')
-                    ->label('Что сделать с товарами?')
+                    ->label('Válassza ki az AI műveletet')
                     ->options([
-                        'generate_description' => '📝 Создать описание',
-                        'find_image' => '🖼️ Найти изображения',
-                        'find_multiple_images' => '🖼️🖼️ Найти несколько изображений (3 шт)',
-                        'generate_keywords' => '🔑 Создать ключевые слова',
-                        'generate_seo' => '🎯 Создать SEO данные',
-                        'generate_all' => '⚡ Сделать всё сразу',
+                        'generate_description' => '📝 Leírás készítése',
+                        'find_image' => '🖼️ Kép keresése',
+                        'find_multiple_images' => '🖼️🖼️ Több kép keresése (3 db)',
+                        'generate_keywords' => '🔑 Kulcsszavak készítése',
+                        'generate_seo' => '🎯 SEO adatok készítése',
+                        'generate_all' => '⚡ Minden automatikusan',
                     ])
                     ->required()
                     ->native(false)
-                    ->helperText('Выберите какое действие применить ко всем выбранным товарам'),
-                
+                    ->helperText('Ez a művelet minden kiválasztott termékre alkalmazva lesz'),
+
                 Textarea::make('custom_request')
-                    ->label('Или напишите свой запрос (необязательно)')
-                    ->placeholder('Например: "Создай описание в стиле luxury"')
+                    ->label('Egyéni AI kérés')
+                    ->placeholder('Például: Írj egyedi leírást vagy keress egy képet és írd be a kep_link mezőbe')
                     ->rows(3)
-                    ->helperText('Если заполните, AI будет использовать ваш запрос вместо стандартного действия'),
+                    ->helperText('Ha kitölti, az AI az Ön kérését fogja használni az alapértelmezett művelet helyett.'),
             ])
             ->action(function (Action $action, array $data) {
                 try {
@@ -48,13 +48,13 @@ class ProductAIBulkAction
                     $aiService = app(ProductAIService::class);
                     $processedCount = 0;
                     $errorCount = 0;
-                    
+
                     Notification::make()
-                        ->title('Обработка началась...')
-                        ->body("Обрабатываем {$records->count()} товаров")
+                        ->title('A feldolgozás megkezdődött...')
+                        ->body("{$records->count()} termék feldolgozása")
                         ->info()
                         ->send();
-                    
+
                     foreach ($records as $product) {
                         try {
                             // Если есть кастомный запрос - используем его
@@ -64,52 +64,50 @@ class ProductAIBulkAction
                                 // Иначе формируем запрос по типу действия
                                 $request = self::getRequestByActionType($data['action_type']);
                             }
-                            
+
                             $result = $aiService->processRequest($product, $request);
-                            
+
                             if (!empty($result['updates'])) {
                                 $product->update($result['updates']);
                                 $processedCount++;
                             }
-                            
                         } catch (\Exception $e) {
                             Log::error("AI Bulk Error for product {$product->id}: " . $e->getMessage());
                             $errorCount++;
                         }
                     }
-                    
+
                     Notification::make()
                         ->title('Готово!')
-                        ->body("Обработано: {$processedCount} товаров. Ошибок: {$errorCount}")
+                        ->body("termék feldolgozva: {$processedCount}. Hibák: {$errorCount}")
                         ->success()
                         ->send();
-                    
                 } catch (\Exception $e) {
                     Log::error('AI Bulk Assistant Error: ' . $e->getMessage());
-                    
+
                     Notification::make()
-                        ->title('Ошибка')
-                        ->body('Произошла ошибка: ' . $e->getMessage())
+                        ->title('Hiba')
+                        ->body('Hibák történtek: ' . $e->getMessage())
                         ->danger()
                         ->send();
                 }
             })
-            ->modalSubmitActionLabel('Применить ко всем')
-            ->modalCancelActionLabel('Отмена')
+            ->modalSubmitActionLabel('Küldés')
+            ->modalCancelActionLabel('Mégse')
             ->deselectRecordsAfterCompletion()
             ->requiresConfirmation();
     }
-    
+
     protected static function getRequestByActionType(string $actionType): string
     {
-        return match($actionType) {
-            'generate_description' => 'Создай описание для этого товара',
-            'find_image' => 'Найди картинку и сохрани в kep_link',
-            'find_multiple_images' => 'Найди несколько картинок (3 штук)',
-            'generate_keywords' => 'Сгенерируй SEO ключевые слова',
-            'generate_seo' => 'Создай все SEO данные',
-            'generate_all' => 'Сделай всё: описание, картинку и SEO',
-            default => 'Создай описание',
+        return match ($actionType) {
+            'generate_description' => 'Készíts leírást ehhez a termékhez',
+            'find_image' => 'Keress egy képet és mentsd el a kep_link mezőbe',
+            'find_multiple_images' => 'Keress több képet (3 darabot)',
+            'generate_keywords' => 'Generálj SEO kulcsszavakat',
+            'generate_seo' => 'Készítsd el az összes SEO adatot',
+            'generate_all' => 'Készíts mindent: leírás, kép és SEO',
+            default => 'Készíts leírást',
         };
     }
 }

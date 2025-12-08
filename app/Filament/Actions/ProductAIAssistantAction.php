@@ -21,10 +21,10 @@ class ProductAIAssistantAction extends Action
     {
         parent::setUp();
 
-        $this->label('🤖 AI Помощник')
+        $this->label('🤖 AI asszisztens')
             ->color('primary')
-            ->modalHeading('AI Помощник для товара')
-            ->modalDescription('Напишите что нужно сделать с товаром')
+            ->modalHeading('AI asszisztens a termékhez')
+            ->modalDescription('Írja be a kérését az AI számára a termékhez')
             ->modalWidth('5xl')
             ->form([
                 ViewField::make('product_info')
@@ -32,11 +32,10 @@ class ProductAIAssistantAction extends Action
                     ->viewData(fn ($record) => ['product' => $record]),
                 
                 Textarea::make('request')
-                    ->label('Ваш запрос к AI')
-                    ->placeholder('Например: "Сделай описание" или "Найди картинку и запиши в kep_link"')
+                    ->label('A kérésed az AI-nak')
+                    ->placeholder('Például: Írj leírást vagy Keress egy képet és írd be a kep_link mezőbe')
                     ->required()
-                    ->rows(4)
-                    ->helperText('AI понимает запросы на русском и венгерском'),
+                    ->rows(4),
                 
                 ViewField::make('chat_history')
                     ->view('filament.components.ai-chat-history')
@@ -47,7 +46,7 @@ class ProductAIAssistantAction extends Action
                     $aiService = app(ProductAIService::class);
                     
                     Notification::make()
-                        ->title('AI обрабатывает запрос...')
+                        ->title('A mesterséges intelligencia feldolgozza a kérést...')
                         ->info()
                         ->send();
                     
@@ -67,13 +66,13 @@ class ProductAIAssistantAction extends Action
                         $record->update($result['updates']);
                         
                         Notification::make()
-                            ->title('Успех!')
+                            ->title('Siker!')
                             ->body($result['message'])
                             ->success()
                             ->send();
                     } else {
                         Notification::make()
-                            ->title('Готово')
+                            ->title('Kész')
                             ->body($result['message'])
                             ->info()
                             ->send();
@@ -86,14 +85,14 @@ class ProductAIAssistantAction extends Action
                     Log::error('AI Assistant Error: ' . $e->getMessage());
                     
                     Notification::make()
-                        ->title('Ошибка')
-                        ->body('Произошла ошибка: ' . $e->getMessage())
+                        ->title('Hiba')
+                        ->body('Hiba történt: ' . $e->getMessage())
                         ->danger()
                         ->send();
                 }
             })
-            ->modalSubmitActionLabel('Отправить')
-            ->modalCancelActionLabel('Закрыть')
+            ->modalSubmitActionLabel('Küldés')
+            ->modalCancelActionLabel('Mégse')
             ->closeModalByClickingAway(false);
     }
 }
