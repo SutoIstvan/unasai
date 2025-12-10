@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Products\Tables;
 
 use App\Filament\Actions\ProductAIBulkAction;
+use App\Filament\Actions\ProductAutoFillBulkAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -111,6 +112,8 @@ class ProductsTable
                 EditAction::make(),
             ])
             ->bulkActions([
+                ProductAutoFillBulkAction::make(),  // <-- Отдельная кнопка ВНЕ группы
+
                 BulkActionGroup::make([
                     ProductAIBulkAction::make(),  // <-- Исправлено!
                     DeleteBulkAction::make(),
