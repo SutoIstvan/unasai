@@ -458,6 +458,7 @@ class ProductAIService
                 'leiras' => $product->leiras,
                 'tulajdonsagok' => $product->tulajdonsagok,
                 'ar' => $product->ar,
+                'sef_url' => $product->sef_url,
                 'seo_title' => $product->seo_title,
                 'seo_description' => $product->seo_description,
                 'seo_keywords' => $product->seo_keywords,
@@ -474,7 +475,21 @@ class ProductAIService
 FONTOS SZABÁLYOK:
 1. Csak azokat a mezőket töltsd ki, amelyek üresek vagy null értékűek
 2. A meglévő adatokat NE módosítsd
-3. Paraméternevek MINDIG magyarul (pl: Gyártó, Márka, Szín, stb.)
+3. A paraméternevek mindig magyarul legyenek. 
+  Csak olyan paramétereket adj vissza, amelyek a termékadatokból egyértelműen meghatározhatók. 
+  Tilos bármilyen adatot kitalálni vagy feltételezni.
+
+  Engedélyezett paramétertípusok (csak ha tényleg szerepelnek a termékben):
+  Gyártó, Márka, Modell, Szín, Méret, Típus, Vízállóság, Szellőzés, Rögzítés típusa,
+  Protektorok fajtái, Bélés típusa, Homologizáció, Napellenző, Súly (ha ismert),
+  Anyag (csak ha explicit meg van adva), Nem (férfi/női/unisex).
+
+  Tilos visszaadni vagy kitalálni:
+  Anyag, Ár, Pontos méretek, Súly ha nincs megadva, CE szint, Technikai adatok,
+  Kapacitás, Erősség, Összetétel. Ha nem 100%-ban biztos, inkább ne add vissza.
+
+  Csak új vagy hiányzó paramétereket adj vissza.
+
 4. Legyél konkrét és professzionális
 5. A leírások legyenek értékesítési szempontból vonzóak
 6. SEO adatok legyenek optimalizáltak
@@ -483,10 +498,23 @@ Adj vissza egy JSON objektumot a következő struktúrával:
 {
   "rovid_leiras": "rövid termékleírás (2-3 mondat)" vagy null ha már van,
   "leiras": "részletes termékleírás (10-18 mondat, előnyök, jellemzők)" vagy null ha már van,
-  "tulajdonsagok" Termék főbb tulajdonságai felsorolás formájában, vesszővel elválasztva (pl: "vízálló, könnyen tisztítható, strapabíró") vagy null ha már van,
+  "tulajdonsagok": "Adj meg egy 4–6 mondatos, összefüggő, marketingbarát leírást magyarul. 
+    A szöveg legyen ugyanabban a stílusban, mint egy prémium kategóriás termékleírás: 
+    – természetes hangvétel,
+    – előnyök kiemelése,
+    – funkciók bemutatása,
+    – jól tagolt mondatok.
+
+    Formázás:
+    – kötelező a <br /> használata bekezdések elválasztására,
+    – ne felsorolást készíts,
+    – ne adj meg technikai listát.
+    Ha már vannak tulajdonságok, adj vissza null."
+
   "seo_title": "SEO optimalizált cím (max 60 karakter)" vagy null ha már van,
   "seo_description": "SEO leírás (max 160 karakter)" vagy null ha már van,
   "seo_keywords": "kulcsszavak, vesszővel elválasztva" vagy null ha már van,
+  "sef_url": "SEO-barát URL rész (kisbetűs, kötőjeles) termek_nev alapján" vagy null ha már van,
   "parameters": {
     "Paraméter neve magyarul": "érték",
     ... (csak új vagy hiányzó paraméterek)
@@ -531,6 +559,11 @@ Adj vissza egy JSON objektumot a következő struktúrával:
             if (!empty($result['tulajdonsagok']) && empty($product->tulajdonsagok)) {
                 $updates['tulajdonsagok'] = $result['tulajdonsagok'];
                 $updatedFields[] = 'Termék tulajdonságai';
+            }
+
+            if (!empty($result['sef_url']) && empty($product->sef_url)) {
+                $updates['sef_url'] = $result['sef_url'];
+                $updatedFields[] = 'SEF URL';
             }
 
             if (!empty($result['seo_title']) && empty($product->seo_title)) {
