@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class Product extends Model
 {
@@ -51,4 +52,54 @@ class Product extends Model
     {
         return $this->hasMany(ProductParameter::class);
     }
+
+    /**
+     * "Boot" метод модели для автоматической обработки событий
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        // Автоматически генерируем sef_url при создании или обновлении названия
+        static::saving(function ($product) {
+            if (empty($product->sef_url) || $product->isDirty('termek_nev')) {
+                $product->sef_url = $product->generateUniqueSlug();
+                $product->kep_filenev = $product->generateUniqueSlug();
+            }
+        });
+    }
+
+    /**
+     * Генерация уникального SEO-ключа
+     */
+    public function generateUniqueSlug(): string
+    {
+        // Используем венгерскую локализацию для корректной транслитерации
+        $slug = Str::slug($this->termek_nev, '-', 'hu');
+
+        // Если слаг пустой, используем базовое значение
+        if (empty($slug)) {
+            $slug = 'product-' . $this->id;
+        }
+
+        // Делаем слаг уникальным
+        $originalSlug = $slug;
+        $counter = 1;
+
+        // Проверяем, существует ли уже такой sef_url (исключая текущую запись)
+        while (static::where('sef_url', $slug)
+               ->where('id', '!=', $this->id ?? 0)
+               ->exists()) {
+            $slug = $originalSlug . '-' . $counter;
+            $counter++;
+
+            // Ограничиваем длину для базы данных
+            if (strlen($slug) > 255) {
+                $slug = substr($originalSlug, 0, 240) . '-' . $counter;
+            }
+        }
+
+        return $slug;
+    }
+
 }

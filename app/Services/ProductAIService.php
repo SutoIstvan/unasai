@@ -3,308 +3,131 @@
 namespace App\Services;
 
 use App\Models\Product;
-use DuckDuckGoImages\Client as DuckDuckGoClient;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Termék AI-funkciók szolgáltatás
+ * OpenAI GPT-5.1 webes kereséssel
+ */
 class ProductAIService
 {
-    private const MODEL = 'gpt-5-mini';
+    private const MODEL = 'gpt-5.1';
     private const API_URL = 'https://api.openai.com/v1/responses';
-
+    
     protected string $apiKey;
-    protected DuckDuckGoClient $imageClient;
 
     public function __construct()
     {
         $this->apiKey = config('services.openai.api_key');
-        $this->imageClient = new DuckDuckGoClient();
     }
 
-    public function processRequest(Product $product, string $userRequest): array
-    {
-        $intent = $this->detectIntent($product, $userRequest);
-
-        return match ($intent['action'] ?? 'chat') {
-            'generate_description' => $this->handleDescription($product),
-            'find_image'           => $this->handleImages($product),
-            'generate_keywords'    => $this->handleKeywords($product),
-            'generate_seo'         => $this->handleSEO($product),
-            'generate_all'         => $this->handleGenerateAll($product),
-            'extract_parameters'   => $this->handleExtractParameters($product),
-            'update_parameter'     => $this->handleUpdateParameter($product, $userRequest),
-            default                => $this->handleChat($product, $userRequest),
-        };
-    }
-
-    // ─────────────────────────────── ГЛАВНЫЙ МЕТОД ───────────────────────────────
-    private function handleGenerateAll(Product $product): array
+    /**
+     * Fő kérés feldolgozó metódus
+     */
+    public function processRequest(Product $product): array
     {
         try {
-            Log::info('AI: generate_all запущен', ['product_id' => $product->id]);
+            $searchQuery = $product->termek_nev;
+            
+            Log::info('AI feldolgozás elindult', [
+                'product_id' => $product->id,
+                'name' => $searchQuery
+            ]);
 
-            $existingParams = $product->parameters()
-                ->pluck('parameter_value', 'parameter_name')
-                ->toArray();
+            // Leírás és paraméterek generálása
+            $result = $this->generateProductData($searchQuery, $product);
+            
+            // Termék nevének frissítése, ha az AI jobbat javasolt
+            $updates = [];
+            if (!empty($result['product_name'])) {
+                $updates['termek_nev'] = $result['product_name'];
+                $updates['seo_title'] = $result['product_name'];
+            }
+            
+            if (!empty($result['description'])) {
+                $updates['rovid_leiras'] = $result['description'];
+                $description = trim($result['description']);
+                $updates['kep_alt_title'] = $description;
+                $updates['seo_description'] = $description;
+            }
+            
+            // Tulajdonságok hozzáadása a tulajdonsagok mezőhöz
+            if (!empty($result['features'])) {
+                $updates['tulajdonsagok'] = $result['features'];
+            }
+            
+            // Paraméterek mentése az adatbázisba
+            $paramStats = $this->updateParameters($product, $result['parameters']);
 
-            $productData = [
-                'termek_nev'       => $product->termek_nev,
-                'rovid_leiras'     => $product->rovid_leiras,
-                'leiras'           => $product->leiras,
-                'tulajdonsagok'    => $product->tulajdonsagok,
-                'seo_title'        => $product->seo_title,
-                'seo_description'  => $product->seo_description,
-                'seo_keywords'     => $product->seo_keywords,
-                'sef_url'          => $product->sef_url,
-                'parameters'       => $existingParams,
-            ];
-
-            $rawResponse = $this->callAIText(
-                $this->getGenerateAllPrompt(),
-                json_encode($productData, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT),
-                null,           // maxTokens
-                'medium'        // reasoningEffort
-            );
-
-            Log::info('AI: сырой ответ от GPT-5-mini', ['response' => $rawResponse]);
-
-            $parsed = $this->parseJsonFromText($rawResponse);
-
-            Log::info('AI: JSON успешно распарсен', ['data' => $parsed]);
-
-            return $this->processGeneratedData($product, $parsed);
-
-        } catch (\Exception $e) {
-            Log::error('AI generate_all провал', [
-                'product_id' => $product->id ?? null,
-                'error'      => $e->getMessage(),
-                'trace'      => $e->getTraceAsString()
+            Log::info('AI feldolgozás befejezve', [
+                'product_id' => $product->id,
+                'params_created' => $paramStats['created'],
+                'params_updated' => $paramStats['updated'],
+                'features_generated' => !empty($result['features'])
             ]);
 
             return [
+                'updates' => $updates,
+                'parameters' => $result['parameters'],
+                'message' => "✅ Leírás és tulajdonságok létrehozva. Paraméterek: {$paramStats['created']} létrehozva, {$paramStats['updated']} frissítve"
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('AI feldolgozás sikertelen', [
+                'product_id' => $product->id,
+                'error' => $e->getMessage()
+            ]);
+            
+            return [
                 'updates' => [],
-                'message' => 'Hiba: ' . $e->getMessage(),
+                'parameters' => [],
+                'message' => 'Hiba: ' . $e->getMessage()
             ];
         }
     }
 
-    // ─────────────────────────────── ДРУГИЕ ОБРАБОТЧИКИ ───────────────────────────────
-    private function handleDescription(Product $product): array
+    /**
+     * Leírás, tulajdonságok és paraméterek generálása egy kéréssel webes kereséssel
+     */
+    private function generateProductData(string $searchQuery, Product $product): array
     {
-        $text = $this->callAIText(
-            "Prémium magyar motoros webshop szövegíró vagy.",
-            "Írj 2-3 mondatos rövid leírást: {$product->termek_nev}",
-            false,
-            200,
-            'minimal',
-            false
-        );
-
-        return ['updates' => ['rovid_leiras' => $text], 'message' => 'Rövid leírás kész'];
-    }
-
-    private function handleKeywords(Product $product): array
-    {
-        $kw = $this->callAIText(
-            "SEO szakértő vagy.",
-            "12-18 releváns magyar kulcsszó vesszővel: {$product->termek_nev}",
-            false,
-            200,
-            'minimal',
-            false
-        );
-
-        return ['updates' => ['seo_keywords' => $kw], 'message' => 'Kulcsszavak kész'];
-    }
-
-    private function handleSEO(Product $product): array
-    {
-        $data = $this->callAIJson(
-            "Csak JSON: {\"seo_title\":\"...\",\"seo_description\":\"...\",\"seo_keywords\":\"...\"}",
-            "Termék: {$product->termek_nev}"
-        );
-
-        return ['updates' => $data, 'message' => 'SEO adatok kész'];
-    }
-
-    private function handleChat(Product $product, string $message): array
-    {
-        $answer = $this->callAIText(
-            "Segítőkész magyar motoros webshop ügyfélszolgálat vagy.",
-            "Termék: {$product->termek_nev}\nÜgyfél: {$message}",
-            false,
-            800,
-            'low',
-            false
-        );
-
-        return ['updates' => [], 'message' => $answer];
-    }
-
-    // ─────────────────────── ВЫЗОВЫ API (БЕЗ ИМЕНОВАННЫХ ПАРАМЕТРОВ) ───────────────────────
-    private function callAIJson(string $system, string $user, ?int $maxTokens = null, string $effort = 'minimal'): array
-    {
-        return $this->callAI($system, $user, true, $maxTokens, $effort, false);
-    }
-
-    private function callAIText(string $system, string $user, ?int $maxTokens = null, string $effort = 'minimal'): string
-    {
-        return $this->callAI($system, $user, false, $maxTokens, $effort, true);
-    }
-
-    private function callAI(
-        string $system,
-        string $user,
-        bool $json = false,
-        ?int $maxTokens = null,
-        string $reasoningEffort = 'minimal',
-        bool $useWebSearch = false
-    ): string|array {
-        $input = "System: {$system}\n\nUser: {$user}";
-
-        $payload = [
-            'model'     => self::MODEL,
-            'input'     => $input,
-            'reasoning' => ['effort' => $reasoningEffort],
-        ];
-
-        if ($useWebSearch) {
-            $payload['tools'] = [['type' => 'web_search']];
-        }
-
-        if ($json) {
-            $payload['text'] = ['format' => ['type' => 'json_object']];
-        }
-
-        // max_output_tokens ТОЛЬКО если НЕТ web_search
-        if ($maxTokens && !$useWebSearch) {
-            $payload['max_output_tokens'] = $maxTokens;
-        }
-
-        $response = Http::withToken($this->apiKey)
-            ->timeout(180)
-            ->retry(3, 10000)
-            ->post(self::API_URL, $payload);
-
-        if ($response->failed()) {
-            Log::error('OpenAI API hiba', ['status' => $response->status(), 'body' => $response->body()]);
-            throw new \Exception('OpenAI API hiba: ' . $response->status());
-        }
-
-        $data = $response->json();
-
-        $content = null;
-        foreach (($data['output'] ?? []) as $item) {
-            if (($item['type'] ?? '') === 'message' && !empty($item['content'][0]['text'] ?? null)) {
-                $content = $item['content'][0]['text'];
-                break;
+        // Meglévő paraméterek lekérése
+        $existingParams = $product->parameters()
+            ->pluck('parameter_value', 'parameter_name')
+            ->toArray();
+        
+        $existingParamsText = '';
+        if (!empty($existingParams)) {
+            $paramsList = [];
+            foreach ($existingParams as $name => $value) {
+                $paramsList[] = "{$name}: {$value}";
             }
+            $existingParamsText = "\n\nMeglévő termék paraméterek:\n" . implode("\n", $paramsList);
         }
 
-        if (!$content) {
-            Log::error('Пустой ответ от OpenAI', ['response' => $data]);
-            throw new \Exception('Empty response from OpenAI API');
-        }
+        $prompt = "Te egy e-kereskedelmi termékadat-feldolgozó és tartalomgeneráló rendszer vagy. A bemenet többnyelvű lehet, de a kimenet minden esetben magyar nyelvű.
+Webes keresés alapján hozz létre információt a termékről kizárólag hiteles, ellenőrizhető, külső forrásból származó adatok alapján SZIGORÚAN ebben a formátumban:
 
-        return $json ? json_decode($content, true) : $content;
-    }
-
-    private function parseJsonFromText(string $text): array
-    {
-        if (preg_match('/```json\s*([\s\S]*?)\s*```/i', $text, $m)) {
-            $text = $m[1];
-        }
-
-        $decoded = json_decode($text, true);
-
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            Log::error('JSON parse hiba', ['text' => $text, 'error' => json_last_error_msg()]);
-            throw new \Exception('Nem sikerült JSON-t kinyerni');
-        }
-
-        return $decoded;
-    }
-
-    private function detectIntent(Product $product, string $request): array
-    {
-        $res = $this->callAIJson(
-            'Csak JSON: {"action":"generate_description|find_image|generate_keywords|generate_seo|generate_all|extract_parameters|update_parameter|chat"}',
-            "Termék: {$product->termek_nev}\nKérés: {$request}"
-        );
-
-        return is_array($res) ? $res : ['action' => 'chat'];
-    }
-
-    // ─────────────────────────── СОХРАНЕНИЕ В БД ───────────────────────────
-    private function processGeneratedData(Product $product, array $gen): array
-    {
-        $updates = [];
-        $fields  = [];
-
-        $map = [
-            'termek_nev'      => 'Terméknév',
-            'rovid_leiras'    => 'Rövid leírás',
-            'leiras'          => 'Részletes leírás',
-            'tulajdonsagok'   => 'Tulajdonságok',
-            'sef_url'         => 'SEF URL',
-            'seo_title'       => 'SEO cím',
-            'seo_description' => 'SEO leírás',
-            'seo_keywords'    => 'Kulcsszavak',
-        ];
-
-        foreach ($map as $key => $label) {
-            if (!empty($gen[$key]) && empty($product->$key)) {
-                $updates[$key] = $gen[$key];
-                $fields[] = $label;
-            }
-        }
-
-        if (!empty($gen['parameters'])) {
-            $stat = $this->updateParameters($product, $gen['parameters']);
-            $fields[] = "{$stat['created']} új + {$stat['updated']} paraméter";
-        }
-
-        if ($updates) {
-            $product->update($updates);
-        }
-
-        $msg = $fields ? 'Frissítve: ' . implode(', ', $fields) : 'Minden már ki van töltve';
-
-        return ['updates' => $updates, 'message' => $msg];
-    }
-
-    private function updateParameters(Product $product, array $params): array
-    {
-        $created = $updated = 0;
-        foreach ($params as $name => $value) {
-            if (empty($value)) continue;
-            $p = $product->parameters()->updateOrCreate(
-                ['parameter_name' => $name],
-                ['parameter_type' => 'text', 'parameter_value' => $value]
-            );
-            $p->wasRecentlyCreated ? $created++ : $updated++;
-        }
-        return ['created' => $created, 'updated' => $updated];
-    }
-
-    // ─────────────────────────── ПРОМПТ ───────────────────────────
-    private function getGenerateAllPrompt(): string
-    {
-        return <<<PROMPT
-Te egy e-kereskedelmi termékadat-feldolgozó és tartalomgeneráló rendszer vagy. Feladatod minden hiányzó mezőt kitölteni, de kizárólag hiteles, ellenőrizhető, külső forrásból származó adatok alapján. A bemenet többnyelvű lehet, de a kimenet minden esetben magyar nyelvű. A válasz kizárólag egy érvényes JSON objektum lehet, pontosan a megadott struktúrával.
-
-Használd a web_search eszközt, hogy 2025-ös, hiteles adatokat találj a termékről.
+product_name: [javított termék név legyen jobb, magyar nyelven - SEO-barát és értékesítésorientált formára, tömör, prémium hatású, releváns és természetes magyar nyelvű. Tilos a kulcsszóhalmozás és a félrevezető megfogalmazás.]
+description: [rövid termék leírás 2-3 mondatban magyar nyelven]
+features: [részletes jellemzők és előnyök magyar nyelven]
+parameters: Név1:érték; Név2:érték; Név3:érték
 
 ALAPSZABÁLYOK:
-1. A meglévő JSON struktúrát kötelező érintetlenül megtartani. Sem új mezőt nem adhatsz hozzá, sem meglévőt nem távolíthatsz el, sem nem nevezhetsz át.
-2. Csak azokat a mezőket töltsd ki, amelyek üresek, hiányoznak vagy null értékűek.
-3. A meglévő, nem üres mezőket nem módosíthatod, kivéve a termek_nev mezőt, amelyet átírhatsz jobb, természetesebb, SEO-barát és értékesítésorientált formára.
-4. A termek_nev átírásakor a megnevezés legyen tömör, prémium hatású, releváns és természetes magyar nyelvű. Tilos a kulcsszóhalmozás és a félrevezető megfogalmazás.
-5. Tilos bármilyen adatot kitalálni, feltételezni, következtetni vagy gyártani. MINDEN adatnak hiteles, nyilvános forrásból kell származnia.
-6. A modell böngészéssel vagy külső információkereséssel dolgozik. Csak olyan adatot adhatsz vissza, amelyet 100 százalékos bizonyossággal megtalálsz hiteles forrásban: gyártói oldal, gyártói katalógus, elismert webshopok, hivatalos termékoldalak.
-7. Ha egy információ nem található meg biztosan, a mező értéke maradjon null.
-8. A kimeneti JSON-ban minden mezőérték legyen egyszerű szövegformátum, HTML nélkül (kivéve ahol <br /> kötelező).
-9. A válasznak minden esetben érvényes JSON-nak kell lennie, magyarázat vagy további szöveg nélkül.
+
+A modell böngészéssel vagy külső információkereséssel dolgozik. Csak olyan adatot adhatsz vissza, amelyet 100 százalékos bizonyossággal megtalálsz hiteles forrásban: gyártói oldal, gyártói katalógus, elismert webshopok, hivatalos termékoldalak.
+
+Ha egy információ nem található meg biztosan, a mező értéke maradjon null.
+
+A tulajdonsagok mező (features):
+- Írj egyszerű szöveget HTML tagek NÉLKÜL
+– minimum két <br/> bekezdésre legyen tagolva, pontokra bontva
+- Írd le a főbb jellemzőket, előnyöket, különlegességeket
+- Példa formátum: Jellemző 1<br><br/>Jellemző 2<br><br/>Jellemző 3
+– 7–13 mondatból álljon,
+– a szöveg elején természetesen jelenjenek meg a fő kulcsszavak,
+– ne tartalmazzon listákat vagy felsorolásokat.
 
 TILTOTT ADATSZERZÉS ÉS TILTOTT KÖVETKEZTETÉS:
 Tilos visszaadni bármilyen olyan adatot, amely:
@@ -334,38 +157,192 @@ A korábban felsorolt paraméterlista csak példa, nem korlátozás.
 
 SOHA ne adj vissza olyan paramétert, amelyet nem találsz meg hiteles forrásban.
 
-LEÍRÁSI MEZŐK (rovid_leiras, leiras, tulajdonsagok):
-– Csak akkor töltsd ki ezeket, ha a bemeneti érték null vagy hiányzik.
+description LEÍRÁSI MEZŐK (rovid_leiras):
 – A szöveg legyen prémium hangvételű, gördülékeny, természetes magyar nyelvű és értékesítésorientált.
-– A rovid_leiras 2–3 mondat legyen.
+– A rovid_leiras 2–3 mondat legyen.";
+        
+        $result = $this->callAI(
+            system: $prompt,
+            user: "Termék: {$searchQuery}{$existingParamsText}",
+            useWebSearch: true,
+            maxTokens: 1500
+        );
 
-A tulajdonsagok mező:
-– 10–18 mondatból álljon,
-– a szöveg elején természetesen jelenjenek meg a fő kulcsszavak,
-– minimum két <br /> bekezdésre legyen tagolva,
-– ne tartalmazzon listákat vagy felsorolásokat.
+        // Szöveges válasz feldolgozása
+        return $this->parseTextResponse($result);
+    }
 
-SEO MEZŐK:
-– seo_title: maximum 60 karakter, tartalmazza a márkát vagy a fő típust, és emeljen ki egy fontos előnyt természetes magyar nyelven; kulcsszó csak akkor szerepeljen benne, ha organikusan illeszkedik.
-– seo_description: maximum 160 karakter, természetes magyar nyelven, egy előnyt emelve ki, finoman utalva a felhasználási helyzetre vagy célcsoportra; kulcsszó csak akkor szerepeljen benne, ha természetesen illeszkedik.
-– sef_url: a termek_nev alapján készüljön kisbetűs, ékezet nélküli, kötőjeles formában, kizárólag betűket és számokat használva, minden más karakter eltávolítva.
+    /**
+     * AI szöveges válaszának feldolgozása
+     */
+    private function parseTextResponse(string $text): array
+    {
+        $productName = '';
+        $description = '';
+        $features = '';
+        $parameters = [];
 
-KIMENET:
-A válasz kizárólag egy érvényes JSON objektum lehet, pontosan ezzel a struktúrával:
-{
-  "termek_nev": "...",
-  "rovid_leiras": "... vagy null",
-  "leiras": "... vagy null",
-  "tulajdonsagok": "... vagy null",
-  "seo_title": "... vagy null",
-  "seo_description": "... vagy null",
-  "sef_url": "... vagy null",
-  "parameters": {
-    "név": "érték"
-  }
-}
-Semmi más nem szerepelhet a válaszban.
+        // Sorokra bontás
+        $lines = explode("\n", $text);
+        
+        $currentField = null;
+        $featuresBuffer = [];
+        
+        foreach ($lines as $line) {
+            $lineOriginal = $line;
+            $line = trim($line);
+            
+            // product_name keresése:
+            if (preg_match('/^product_name:\s*(.+)$/i', $line, $matches)) {
+                $productName = trim($matches[1]);
+                $currentField = null;
+                continue;
+            }
+            
+            // description keresése:
+            if (preg_match('/^description:\s*(.+)$/i', $line, $matches)) {
+                $description = trim($matches[1]);
+                $currentField = null;
+                continue;
+            }
+            
+            // features keresése: (többsoros lehet)
+            if (preg_match('/^features:\s*(.*)$/i', $line, $matches)) {
+                $currentField = 'features';
+                $featuresContent = trim($matches[1]);
+                if (!empty($featuresContent)) {
+                    $featuresBuffer[] = $featuresContent;
+                }
+                continue;
+            }
+            
+            // parameters keresése:
+            if (preg_match('/^parameters:\s*(.+)$/i', $line, $matches)) {
+                $currentField = null;
+                $paramsString = trim($matches[1]);
+                
+                // Paraméterek felbontása: "Gyártó:érték; Márka:érték"
+                $paramPairs = explode(';', $paramsString);
+                
+                foreach ($paramPairs as $pair) {
+                    $pair = trim($pair);
+                    if (strpos($pair, ':') !== false) {
+                        [$name, $value] = explode(':', $pair, 2);
+                        $parameters[trim($name)] = trim($value);
+                    }
+                }
+                continue;
+            }
+            
+            // Ha a features mezőn belül vagyunk, hozzáadjuk a sort
+            if ($currentField === 'features' && !empty($line)) {
+                $featuresBuffer[] = $lineOriginal;
+            }
+        }
+        
+        // Features összegyűjtése a pufferből
+        if (!empty($featuresBuffer)) {
+            $features = implode("\n", $featuresBuffer);
+        }
 
-PROMPT;
+        return [
+            'product_name' => $productName,
+            'description' => $description,
+            'features' => $features,
+            'parameters' => $parameters
+        ];
+    }
+
+    /**
+     * OpenAI Responses API hívás (GPT-5.1)
+     */
+    private function callAI(
+        string $system,
+        string $user,
+        bool $useWebSearch = false,
+        ?int $maxTokens = null
+    ): string {
+        
+        $input = "System: {$system}\n\nUser: {$user}";
+        
+        $payload = [
+            'model' => self::MODEL,
+            'input' => $input,
+            'reasoning' => [
+                'effort' => 'none'
+            ],
+        ];
+
+        if ($useWebSearch) {
+            $payload['tools'] = [
+                ['type' => 'web_search']
+            ];
+        }
+
+        if ($maxTokens) {
+            $payload['max_output_tokens'] = $maxTokens;
+        }
+
+        // Kérés küldése
+        $response = Http::withToken($this->apiKey)
+            ->timeout(60)
+            ->post(self::API_URL, $payload);
+
+        if ($response->failed()) {
+            throw new \Exception('OpenAI API hiba: ' . $response->status());
+        }
+
+        $responseData = $response->json();
+
+        // Helyes útvonal a válasz szövegéhez
+        $content = null;
+        
+        if (isset($responseData['output']) && is_array($responseData['output'])) {
+            foreach ($responseData['output'] as $item) {
+                if ($item['type'] === 'message' && isset($item['content'])) {
+                    foreach ($item['content'] as $contentItem) {
+                        if ($contentItem['type'] === 'output_text') {
+                            $content = $contentItem['text'];
+                            break 2;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!$content) {
+            throw new \Exception('Üres válasz az OpenAI API-tól');
+        }
+
+        return $content;
+    }
+
+    /**
+     * Termék paraméterek frissítése az adatbázisban
+     */
+    private function updateParameters(Product $product, array $params): array
+    {
+        $created = 0;
+        $updated = 0;
+
+        foreach ($params as $name => $value) {
+            if (empty($value)) continue;
+
+            $param = $product->parameters()->where('parameter_name', $name)->first();
+
+            if ($param) {
+                $param->update(['parameter_value' => $value]);
+                $updated++;
+            } else {
+                $product->parameters()->create([
+                    'parameter_name' => $name,
+                    'parameter_type' => 'text',
+                    'parameter_value' => $value,
+                ]);
+                $created++;
+            }
+        }
+
+        return compact('created', 'updated');
     }
 }
