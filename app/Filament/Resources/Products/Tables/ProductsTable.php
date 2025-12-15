@@ -115,7 +115,7 @@ class ProductsTable
                 ProductAutoFillBulkAction::make(),  // <-- Отдельная кнопка ВНЕ группы
 
                 BulkActionGroup::make([
-                    ProductAIBulkAction::make(),  // <-- Исправлено!
+                    // ProductAIBulkAction::make(),  // <-- Исправлено!
                     DeleteBulkAction::make(),
                 ]),
             ]);

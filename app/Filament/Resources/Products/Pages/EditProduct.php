@@ -14,7 +14,7 @@ class EditProduct extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            ProductAIAssistantAction::make(),  // <-- Добавьте эту строку!
+            // ProductAIAssistantAction::make(),  // <-- Добавьте эту строку!
             Actions\DeleteAction::make(),
         ];
     }
