@@ -13,11 +13,10 @@ class ProductAutoFillBulkAction
     public static function make(): BulkAction
     {
         return BulkAction::make('ai_auto_fill_all')
-            ->label('⚡ AI Automatikus kitöltés')
+            ->label('AI Adatkitöltés')
             ->icon('heroicon-o-sparkles')
-            ->color('success')
             ->requiresConfirmation()
-            ->modalHeading('AI Automatikus kitöltés')
+            ->modalHeading('AI Automatikus adatkitöltés')
             ->modalDescription('Az AI automatikusan kitölti az összes üres mezőt és paramétereket a kiválasztott termékeknél. Ez a folyamat néhány percet vehet igénybe.')
             ->modalIcon('heroicon-o-sparkles')
             ->modalSubmitActionLabel('Indítás')

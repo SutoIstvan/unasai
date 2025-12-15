@@ -58,10 +58,27 @@ class ProductsTable
                     ->searchable()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
+                // TextColumn::make('kep_link')
+                //     ->searchable()
+                //     ->sortable()
+                //     ->toggleable(isToggledHiddenByDefault: true),
+
                 TextColumn::make('kep_link')
-                    ->searchable()
+                    ->label('Képek')
+                    ->formatStateUsing(function ($state) {
+                        $urls = explode('|', $state);
+                        $images = '<div style="display:flex; gap:4px; flex-wrap:nowrap; align-items:center;">';
+                        foreach ($urls as $url) {
+                            $images .= "<img src='{$url}' style='max-width:40px; max-height:40px; object-fit:contain;' />";
+                        }
+                        $images .= '</div>';
+                        return $images;
+                    })
+                    ->html() // разрешаем HTML в колонке
                     ->sortable()
+                    ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
+
                 TextColumn::make('min_menny')
                     ->numeric()
                     ->sortable()
