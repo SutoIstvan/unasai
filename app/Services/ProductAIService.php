@@ -43,12 +43,13 @@ class ProductAIService
             if (!empty($result['product_name'])) {
                 $updates['termek_nev'] = $result['product_name'];
                 $updates['seo_title'] = $result['product_name'];
+                $updates['kep_alt_title'] = $result['product_name'];
             }
             
             if (!empty($result['description'])) {
                 $updates['rovid_leiras'] = $result['description'];
                 $description = trim($result['description']);
-                $updates['kep_alt_title'] = $description;
+                // $updates['kep_alt_title'] = $description;
                 $updates['seo_description'] = $description;
             }
             
@@ -103,63 +104,108 @@ class ProductAIService
             foreach ($existingParams as $name => $value) {
                 $paramsList[] = "{$name}: {$value}";
             }
-            $existingParamsText = "\n\nMeglévő termék paraméterek:\n" . implode("\n", $paramsList);
+            $existingParamsText = "\n\nMeglévő termék paraméterek (NE ADD VISSZA, csak új, hiteles forrásból származó paraméterek készülhetnek):\n" . implode("\n", $paramsList);
         }
 
-        $prompt = "Te egy e-kereskedelmi termékadat-feldolgozó és tartalomgeneráló rendszer vagy. A bemenet többnyelvű lehet, de a kimenet minden esetben magyar nyelvű.
-Webes keresés alapján hozz létre információt a termékről kizárólag hiteles, ellenőrizhető, külső forrásból származó adatok alapján SZIGORÚAN ebben a formátumban:
+        $prompt = "Te egy e-kereskedelmi termékadat-feldolgozó rendszer vagy.
+Feladatod egyetlen termékhez tartozó információk összegyűjtése és átvétele kizárólag hiteles, nyilvánosan elérhető webes forrásokból (gyártói oldalak, hivatalos katalógusok, elismert webáruházak termékoldalai).
 
-product_name: [javított termék név legyen jobb, magyar nyelven - SEO-barát és értékesítésorientált formára, tömör, prémium hatású, releváns és természetes magyar nyelvű. Tilos a kulcsszóhalmozás és a félrevezető megfogalmazás.]
+A bemenet többnyelvű lehet, a kimenet minden esetben magyar nyelvű.
+Tilos bármilyen adatot kitalálni, feltételezni, következtetni vagy kreatívan kiegészíteni.
+
+KONTEXTUS:
+Ez a rendszer motoros ruházatot és felszereléseket forgalmazó webáruház számára készül.
+A termékek jellemzően motoros kabátok, nadrágok, csizmák, kesztyűk, bukósisakok, protektorok és kapcsolódó kiegészítők.
+Ez a kontextus kizárólag a terminológia és a megfogalmazás pontosítására szolgál, nem jogosít fel hiányzó adatok feltételezésére.
+
+FORRÁSHASZNÁLAT – SZIGORÚ SZABÁLY:
+
+Csak olyan adatot adhatsz vissza, amely:
+- szó szerint vagy egyértelműen megtalálható hiteles külső forrásban
+- kifejezetten az adott termékre vonatkozik
+- nem iparági alapértelmezés és nem becslés
+
+A válasz SEMMILYEN formában nem tartalmazhat:
+– URL-t,
+– hivatkozást,
+– domain nevet,
+– zárójelben vagy szögletes zárójelben szereplő linket,
+– forrásmegjelölést vagy webcímet.
+
+Ha egy adat több forrásban eltérően szerepel, azt az adatot NEM adhatod vissza.
+Ha egy adat nem található meg biztos forrásban, hagyd ki.
+
+KIMENETI FORMA – NEM MÓDOSÍTHATÓ:
+A válasz pontosan az alábbi formátumban készüljön.
+A mezőnevek, a kettőspont, a szóköz, a kapcsos zárójelek és a sorrend kötelező és nem változtatható.
+
+product_name: [javított termék név magyar nyelven]
 description: [rövid termék leírás 2-3 mondatban magyar nyelven]
-features: [részletes jellemzők és előnyök magyar nyelven]
-parameters: Név1:érték; Név2:érték; Név3:érték
+features: [részletes jellemzők és előnyök magyar nyelven új sor vagy új bekezdésre használj két egymást követő <br/> <br/>]
+parameters: Név1:Érték; Név2:Érték; Név3:Érték
 
-ALAPSZABÁLYOK:
+MEZŐSPECIFIKUS SZABÁLYOK ÉS LIMITEK:
 
-A modell böngészéssel vagy külső információkereséssel dolgozik. Csak olyan adatot adhatsz vissza, amelyet 100 százalékos bizonyossággal megtalálsz hiteles forrásban: gyártói oldal, gyártói katalógus, elismert webshopok, hivatalos termékoldalak.
+product_name:
+- magyar nyelvű, a forrásokban szereplő megnevezések alapján
+- SEO-barát és értékesítésorientált
+- tömör, prémium hangvételű
+- maximum 70 karakter
+- ha hosszabb lenne, újrafogalmazni kell, TILOS levágni
+- tilos a kulcsszóhalmozás
+- tilos nem forrásban szereplő információ hozzáadása
 
-Ha egy információ nem található meg biztosan, a mező értéke maradjon null.
+description:
+- 2-3 mondat
+- prémium hangvétel
+- kizárólag forrásban szereplő információkra épül
+- maximum 350 karakter
+- nem ismételheti szó szerint a product_name-t
+- nem tartalmazhat feltételezést vagy üres marketing szöveget
 
-A tulajdonsagok mező (features):
-- Írj egyszerű szöveget HTML tagek NÉLKÜL
-– minimum két <br/> bekezdésre legyen tagolva, pontokra bontva
-- Írd le a főbb jellemzőket, előnyöket, különlegességeket
-- Példa formátum: Jellemző 1<br><br/>Jellemző 2<br><br/>Jellemző 3
-– 7–13 mondatból álljon,
-– a szöveg elején természetesen jelenjenek meg a fő kulcsszavak,
-– ne tartalmazzon listákat vagy felsorolásokat.
+features:
+- 7-13 mondat
+- maximum 1500 karakter
+- egyszerű szöveg
+- HTML tagek NÉLKÜL, kivéve a <br/> sortöréseket
+- új sor vagy új bekezdés kizárólag két egymást követő <br/> <br/> használatával engedélyezett
+- a szöveg első 1-2 mondatában természetesen jelenjenek meg a fő kulcsszavak
+- ne tartalmazzon táblázatot
+- ne tartalmazzon nem igazolt technikai adatot
+- Minden új sor végén legyen <br/><br/>
 
-TILTOTT ADATSZERZÉS ÉS TILTOTT KÖVETKEZTETÉS:
-Tilos visszaadni bármilyen olyan adatot, amely:
-– nem található meg legalább egy hiteles forrásban,
-– nem az adott termékre vonatkozik,
-– becslés, tipp vagy logikai következtetés eredménye lenne,
-– iparági standard, de nincs feltüntetve a terméknél.
+parameters:
+- egyetlen sor
+- pontosvesszővel elválasztott párok
+- formátum: Paraméternév:Érték
+- a paraméternevek magyar nyelvűek legyenek
+- az értékek minden esetben normalizáltak legyenek
+– az értékek minden esetben nagy kezdőbetűvel kezdődjenek
+- igen/nem jellegű paramétereknél az érték kizárólag: igen vagy nem
+- enum jellegű paramétereknél (pl. szín, típus, nem) csak a kanonikus alapszó adható meg
+- technikai megnevezéseknél csak a tiszta technikai név adható meg, marketing jelzők nélkül
+- egy paraméterhez pontosan egy érték tartozhat
+- csak hiteles forrásban szereplő paraméterek adhatók meg
+- maximum 10 paraméter adható vissza
+- ha több releváns paraméter létezik, csak a szűrés szempontjából legfontosabbakat add vissza
+– azonos jelentésű vagy nevű vagy tartalmú paraméterek megadása TILOS
+- a meglévő vagy már létező paramétereket NE add vissza
 
-Kifejezetten tilos visszaadni:
-– fizikai méreteket (cm, mm stb.), ha nincs leírva,
-– súlyt, ha nincs megadva,
-– anyagot, ha nincs kifejezetten feltüntetve,
-– technikai adatot (watt, amper, teljesítmény, kapacitás),
-– összetételt,
-– CE szintet, védelmi szintet,
-– gyártási évet vagy gyártási helyet,
-– garanciaidőt,
-– bármilyen adatot, amely nincs explicit módon feltüntetve hiteles, publikusan elérhető forrásban.
+ÁLTALÁNOS LIMIT SZABÁLY:
+Ha bármely mező túllépi a megadott karakterlimitet:
+- újra kell fogalmazni
+- TILOS levágni a szöveget
+- TILOS több mezőbe szétszórni az információt
 
-ENGEDÉLYEZETT PARAMÉTEREK:
-Bármilyen paraméter visszaadható, ha:
-– pontosan ugyanabban a formában szerepel hiteles forrásban,
-– egyértelműen az adott termékhez tartozik,
-– a paraméternév magyar nyelvű.
+KIFEJEZETTEN TILOS:
+- méretek, súly, anyag, technikai adatok, CE szintek, garancia, gyártási év vagy hely, ha nem szerepelnek explicit módon forrásban
+- általános motoros jellemzők automatikus hozzáadása
+- több termék adatainak összemosása
+- formátum módosítása
+- extra sorok vagy extra mezők hozzáadása
 
-A korábban felsorolt paraméterlista csak példa, nem korlátozás.
-
-SOHA ne adj vissza olyan paramétert, amelyet nem találsz meg hiteles forrásban.
-
-description LEÍRÁSI MEZŐK (rovid_leiras):
-– A szöveg legyen prémium hangvételű, gördülékeny, természetes magyar nyelvű és értékesítésorientált.
-– A rovid_leiras 2–3 mondat legyen.";
+A rendszer minden esetben adatmásoló és adatellenőrző módban működik, nem kreatív tartalomgenerálóként.
+        ";
         
         $result = $this->callAI(
             system: $prompt,
@@ -283,6 +329,15 @@ description LEÍRÁSI MEZŐK (rovid_leiras):
             $payload['max_output_tokens'] = $maxTokens;
         }
 
+        // === ДОБАВЛЯЕМ ЛОГИРОВАНИЕ ОТПРАВЛЯЕМОГО PAYLOAD ===
+        Log::info('OpenAI API request payload', [
+            'url' => self::API_URL,
+            'model' => self::MODEL,
+            'use_web_search' => $useWebSearch,
+            'payload' => $payload,                    // Здесь видно всё, что отправляется
+            'input_length' => strlen($input),         // Длина входного текста (полезно для контроля токенов)
+        ]);
+        
         // Kérés küldése
         $response = Http::withToken($this->apiKey)
             ->timeout(60)
