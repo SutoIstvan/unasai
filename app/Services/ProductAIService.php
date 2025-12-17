@@ -141,7 +141,7 @@ A mezőnevek, a kettőspont, a szóköz, a kapcsos zárójelek és a sorrend kö
 
 product_name: [javított termék név magyar nyelven]
 description: [rövid termék leírás 2-3 mondatban magyar nyelven]
-features: [részletes jellemzők és előnyök magyar nyelven új sor vagy új bekezdésre használj két egymást követő <br/> <br/>]
+features: [reszletes jellemzok es elonyok magyar nyelven]
 parameters: Név1:Érték; Név2:Érték; Név3:Érték
 
 MEZŐSPECIFIKUS SZABÁLYOK ÉS LIMITEK:
@@ -164,15 +164,17 @@ description:
 - nem tartalmazhat feltételezést vagy üres marketing szöveget
 
 features:
-- 7-13 mondat
+- 6-10 mondat
+- 2-4 bekezdés
+- bekezdésen belül a mondatok folyamatos szövegként szerepeljenek, sortörés nélkül
+- bekezdések elválasztása kizárólag: <br/><br/>
+- TILOS a <br/> használata mondatok elválasztására
+- a szöveg nem kezdődhet és nem végződhet <br/>-rel
+- csak <br/> engedélyezett, más HTML tag nem
 - maximum 1500 karakter
-- egyszerű szöveg
-- HTML tagek NÉLKÜL, kivéve a <br/> sortöréseket
-- új sor vagy új bekezdés kizárólag két egymást követő <br/> <br/> használatával engedélyezett
-- a szöveg első 1-2 mondatában természetesen jelenjenek meg a fő kulcsszavak
-- ne tartalmazzon táblázatot
-- ne tartalmazzon nem igazolt technikai adatot
-- Minden új sor végén legyen <br/><br/>
+- kizárólag forrásban szereplő információkra épül
+- nem tartalmazhat nem igazolt technikai adatot
+- nem tartalmazhat felsorolást vagy alcímet
 
 parameters:
 - egyetlen sor
