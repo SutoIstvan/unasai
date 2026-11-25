@@ -4,6 +4,8 @@ namespace App\Filament\Resources\Products\Tables;
 
 use App\Filament\Actions\ProductAIBulkAction;
 use App\Filament\Actions\ProductAutoFillBulkAction;
+use App\Models\Category;
+use App\Models\Product;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -15,6 +17,9 @@ class ProductsTable
 {
     public static function configure(Table $table): Table
     {
+        $categoriesById = null;
+        $categoriesByLegacyId = null;
+
         return $table
             ->columns([
                 TextColumn::make('cikkszam')
@@ -50,10 +55,38 @@ class ProductsTable
                     ->date()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('kategoria')
-                    ->searchable()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('category_path')
+                    ->label('Kategória')
+                    ->state(function (Product $record) use (&$categoriesById, &$categoriesByLegacyId): ?string {
+                        $legacyId = trim((string) $record->kategoria);
+
+                        if ($legacyId === '') {
+                            return null;
+                        }
+
+                        if ($categoriesById === null) {
+                            $categories = Category::query()
+                                ->get(['id', 'legacy_id', 'parent_id', 'name']);
+                            $categoriesById = $categories->keyBy('id')->all();
+                            $categoriesByLegacyId = $categories->keyBy('legacy_id')->all();
+                        }
+
+                        return ($categoriesByLegacyId[$legacyId] ?? null)?->treePath('|', $categoriesById, true) ?? $legacyId;
+                    })
+                    ->searchable(query: function ($query, string $search) {
+                        $categories = Category::query()->get(['id', 'legacy_id', 'parent_id', 'name']);
+                        $categoriesById = $categories->keyBy('id')->all();
+                        $search = mb_strtolower($search, 'UTF-8');
+                        $legacyIds = $categories
+                            ->filter(fn (Category $category): bool => str_contains(
+                                mb_strtolower($category->treePath('|', $categoriesById, true), 'UTF-8'),
+                                $search,
+                            ))
+                            ->pluck('legacy_id')
+                            ->all();
+
+                        return $query->whereIn('kategoria', $legacyIds);
+                    }),
                 TextColumn::make('link')
                     ->searchable()
                     ->sortable()

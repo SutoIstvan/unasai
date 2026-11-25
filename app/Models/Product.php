@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
@@ -51,6 +52,22 @@ class Product extends Model
     public function parameters(): HasMany
     {
         return $this->hasMany(ProductParameter::class);
+    }
+
+    public function category(): BelongsTo
+    {
+        return $this->belongsTo(Category::class, 'kategoria', 'legacy_id');
+    }
+
+    public function getCategoryPathAttribute(): ?string
+    {
+        $legacyId = trim((string) $this->kategoria);
+
+        if ($legacyId === '') {
+            return null;
+        }
+
+        return $this->category?->treePath(omitCategoriesRoot: true) ?? $legacyId;
     }
 
     /**

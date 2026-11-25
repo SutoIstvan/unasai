@@ -2,8 +2,10 @@
 
 namespace App\Filament\Resources\Products\Schemas;
 
+use App\Models\Category;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Schemas\Schema;
@@ -29,7 +31,21 @@ class ProductForm
                     ->numeric(),
                 DatePicker::make('akcio_kezdet'),
                 DatePicker::make('akcio_lejarat'),
-                TextInput::make('kategoria'),
+                Select::make('kategoria')
+                    ->label('Kategória')
+                    ->options(function (): array {
+                        $categories = Category::query()
+                            ->whereNotNull('legacy_id')
+                            ->get(['id', 'legacy_id', 'parent_id', 'name']);
+                        $categoriesById = $categories->keyBy('id')->all();
+
+                        return $categories
+                            ->mapWithKeys(fn (Category $category): array => [
+                                $category->legacy_id => $category->treePath('|', $categoriesById, true),
+                            ])
+                            ->all();
+                    })
+                    ->searchable(),
                 Textarea::make('rovid_leiras')
                     ->columnSpanFull(),
                 Textarea::make('tulajdonsagok')
