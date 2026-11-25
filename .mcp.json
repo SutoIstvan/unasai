@@ -1,0 +1,11 @@
+{
+	"mcpServers": {
+		"unas": {
+			"type": "http",
+			"url": "https://mcp.unas.eu/shop/14673/",
+			"tools": [
+				"*"
+			]
+		}
+	}
+}
